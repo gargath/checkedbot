@@ -4,6 +4,8 @@ import (
   "fmt"
   "github.com/nlopes/slack"
   "os"
+  "io/ioutil"
+  "strings"
 )
 
 type Checkedbot struct {
@@ -15,7 +17,13 @@ type Checkedbot struct {
 func initialize() *Checkedbot {
   println("Checkedbot starting")  
 
-  api := slack.New("xoxb-66195202069-gePVrKqmbSWDVyl29Ry4FS1q")
+  file, e := ioutil.ReadFile("./config")
+  if e != nil {
+    fmt.Println("Failed to read config file.")
+    os.Exit(1)
+  }
+  key := strings.Split(string(file),"\n")
+  api := slack.New(key[0])
   api.SetDebug(false)
   b := &Checkedbot{}
   b.api = api
