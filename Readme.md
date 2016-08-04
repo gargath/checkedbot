@@ -2,7 +2,7 @@
 A Slack bot that can operate checklists
 
 ## Requirements
-```go
+````bash
 $ go get github.com/nlopes/slack
 ```
 
