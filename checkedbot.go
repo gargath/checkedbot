@@ -12,11 +12,18 @@ type Checkedbot struct {
   api *slack.Client
   rtm *slack.RTM
   userid string
+  current Execution
+}
+
+func (bot *Checkedbot) simpleSay(msg string, chnl string) {
+  bot.rtm.SendMessage(bot.rtm.NewOutgoingMessage(msg, chnl))
 }
 
 func initialize() *Checkedbot {
   println("Checkedbot starting")  
 
+  i := Execution{}
+  i.List.Id = -1
   file, e := ioutil.ReadFile("./config")
   if e != nil {
     fmt.Println("Failed to read config file.")
@@ -26,11 +33,12 @@ func initialize() *Checkedbot {
   api := slack.New(key[0])
   api.SetDebug(false)
   b := &Checkedbot{}
+  b.current = i
   b.api = api
   b.cleanup()
   users, err := api.GetUsers()
   if err != nil {
-    fmt.Println("ERROR: Failed to identify own ID.")
+    fmt.Println("ERROR: Failed to identify own ID: ", err)
     os.Exit(1)
   }
   for _, user := range users {
@@ -51,30 +59,29 @@ func Start() {
   err := bot.present(true)
   if err != nil {
     fmt.Println("WARN: Failed to udpate presence")
-  }  
+  }
 
   rtm := bot.api.NewRTM()
   bot.rtm = rtm
-  
   go rtm.ManageConnection()
+  
+  channels, err := bot.api.GetChannels(true)
+    if err != nil {
+      fmt.Println("Failed to get channel list!")
+    }
+    for _,channel := range channels {
+      if channel.IsMember {
+        fmt.Printf("Announcing in channel %s (%s)\n", channel.Name, channel.ID)
+        bot.rtm.SendMessage(bot.rtm.NewOutgoingMessage("Checkedbot online and ready", channel.ID))
+      }
+    }
+  
   for  {
     select {
       case msg := <-rtm.IncomingEvents:
         switch ev := msg.Data.(type) {
           case *slack.MessageEvent:
-            if ev.SubType == "bot_message" || ev.User == bot.userid {
-              break
-            }
-            var msg string
-            if ev.SubType == "message_changed" {
-              fmt.Println("Message changed")
-              fmt.Printf("New Message: %s\n", ev.SubMessage.Text)
-              msg = "I saw that!"
-            } else {
-              fmt.Printf("Message: %s\n", ev.Text)
-              msg = "I know you are, what what am I?"
-            }
-            rtm.SendMessage(rtm.NewOutgoingMessage(msg, ev.Channel))
+            bot.handle(ev)
           default:
             fmt.Printf("=====Event: %+v\n", ev)
         }
